@@ -1,0 +1,36 @@
+{
+  "name": "maxpin",
+  "version": "0.1.0",
+  "description": "Maxpin programming language - step by step, logically structured",
+  "main": "dist/index.js",
+  "bin": {
+    "maxpin": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli/index.js",
+    "dev": "ts-node cli/index.ts",
+    "test": "jest"
+  },
+  "keywords": [
+    "language",
+    "programming",
+    "maxpin",
+    "mpin"
+  ],
+  "author": "Mulpin",
+  "license": "MIT",
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.ts"]
+  },
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.4.15",
+    "ts-node": "^10.0.0",
+    "typescript": "^5.0.0"
+  }
+}

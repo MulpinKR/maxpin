@@ -1,0 +1,4 @@
+#= Multiple statements example
+Write="Line 1"+in.newline
+Write="Line 2"+in.newline
+Write="Line 3 "+in.console
