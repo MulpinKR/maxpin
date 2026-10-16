@@ -1,0 +1,17 @@
+#= A script a game engine can drive.
+#= The host registers native functions (like spawn) and calls these back.
+
+Define onStart()
+    Write="game started"+in.newline
+    Return true
+End
+
+Define onDamage(hp, dmg)
+    Set remaining = hp - dmg
+    Write="took " + str(dmg) + " damage, " + str(remaining) + " hp left"+in.newline
+    Return remaining
+End
+
+Define onWin(score)
+    Return "You win with " + str(score) + " points!"
+End

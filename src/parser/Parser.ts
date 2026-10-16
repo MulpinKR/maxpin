@@ -4,11 +4,20 @@ import {
   Program,
   Statement,
   WriteStatement,
+  SetStatement,
+  DefineStatement,
+  ReturnStatement,
+  ExpressionStatement,
+  Comment,
   Expression,
   StringLiteral,
+  NumberLiteral,
+  BooleanLiteral,
+  Identifier,
   BinaryExpression,
-  ConsoleTarget,
-  Comment
+  UnaryExpression,
+  CallExpression,
+  ConsoleTarget
 } from "../ast/Node";
 
 export class ParseError extends Error {
@@ -18,8 +27,9 @@ export class ParseError extends Error {
   }
 }
 
-const TARGET_TOKENS: TokenType[] = [TokenType.IN_CONSOLE, TokenType.IN_NEWLINE];
-const TARGET_NAMES = new Set(["in.console", "in.newline"]);
+function isTargetToken(type: TokenType): boolean {
+  return type === TokenType.IN_CONSOLE || type === TokenType.IN_NEWLINE;
+}
 
 export class Parser {
   private tokens: Token[] = [];
@@ -29,171 +39,324 @@ export class Parser {
     this.tokens = lexer.tokenize();
   }
 
-  private currentToken(): Token {
-    if (this.position >= this.tokens.length) {
-      return { type: TokenType.EOF, value: "", line: 0, column: 0 };
-    }
-    return this.tokens[this.position];
+  // --- token helpers -------------------------------------------------------
+
+  private current(): Token {
+    return this.peek(0);
   }
 
-  private peekToken(): Token {
-    if (this.position + 1 >= this.tokens.length) {
+  private peek(offset: number): Token {
+    const i = this.position + offset;
+    if (i >= this.tokens.length) {
       return { type: TokenType.EOF, value: "", line: 0, column: 0 };
     }
-    return this.tokens[this.position + 1];
+    return this.tokens[i];
   }
 
-  private nextToken(): void {
+  private next(): Token {
+    const token = this.current();
     if (this.position < this.tokens.length) {
       this.position++;
     }
+    return token;
   }
 
-  private advancePastNewlines(): void {
-    while (this.currentToken().type === TokenType.NEWLINE) {
-      this.nextToken();
+  private check(type: TokenType): boolean {
+    return this.current().type === type;
+  }
+
+  private match(type: TokenType): boolean {
+    if (this.check(type)) {
+      this.next();
+      return true;
+    }
+    return false;
+  }
+
+  private expect(type: TokenType, message: string): Token {
+    if (this.check(type)) {
+      return this.next();
+    }
+    const t = this.current();
+    throw new ParseError(`${message} (got ${describe(t)})`, t.line, t.column);
+  }
+
+  private skipNewlines(): void {
+    while (this.check(TokenType.NEWLINE)) {
+      this.next();
     }
   }
+
+  // --- entry point ---------------------------------------------------------
 
   parse(): Program {
     const statements: Statement[] = [];
-
-    this.advancePastNewlines();
-    while (this.currentToken().type !== TokenType.EOF) {
-      const stmt = this.parseStatement();
-      if (stmt) {
-        statements.push(stmt);
-      }
-      this.advancePastNewlines();
+    this.skipNewlines();
+    while (!this.check(TokenType.EOF)) {
+      statements.push(this.parseStatement());
+      this.skipNewlines();
     }
-
     return { type: "Program", statements };
   }
 
-  private parseStatement(): Statement | null {
-    const token = this.currentToken();
+  // --- statements ----------------------------------------------------------
 
-    switch (token.type) {
+  private parseStatement(): Statement {
+    switch (this.current().type) {
       case TokenType.COMMENT:
         return this.parseComment();
       case TokenType.WRITE:
-        return this.parseWriteStatement();
-      case TokenType.EOF:
-        return null;
+        return this.parseWrite();
+      case TokenType.SET:
+        return this.parseSet();
+      case TokenType.DEFINE:
+        return this.parseDefine();
+      case TokenType.RETURN:
+        return this.parseReturn();
       default:
-        throw new ParseError(
-          `Unexpected token "${token.value}" — statements must start with Write or a comment`,
-          token.line,
-          token.column
-        );
+        return this.parseExpressionStatement();
     }
   }
 
   private parseComment(): Comment {
-    const token = this.currentToken();
-    this.nextToken();
+    const token = this.next();
     return { type: "Comment", value: token.value };
   }
 
-  private parseWriteStatement(): WriteStatement {
-    const writeToken = this.currentToken();
-    this.nextToken(); // consume Write
-
-    if (this.currentToken().type !== TokenType.EQUALS) {
-      throw new ParseError(
-        'Expected "=" after Write',
-        this.currentToken().line,
-        this.currentToken().column
-      );
-    }
-    this.nextToken(); // consume "="
-
-    // The value is everything up to the final "+" that separates it from the target.
-    const value = this.parseValue();
-
-    if (this.currentToken().type !== TokenType.PLUS) {
-      throw new ParseError(
-        'Expected "+" before a target such as in.console',
-        this.currentToken().line,
-        this.currentToken().column
-      );
-    }
-    this.nextToken(); // consume "+"
-
+  private parseWrite(): WriteStatement {
+    this.next(); // Write
+    this.expect(TokenType.EQUALS, 'Expected "=" after Write');
+    const value = this.parseExpression();
+    this.expect(TokenType.PLUS, 'Expected "+" before a target such as in.console');
     const target = this.parseTarget();
-
     return { type: "WriteStatement", value, target };
   }
 
-  // Parses a value expression: a string literal, optionally followed by
-  // "+" (string | number) pairs. Numbers are coerced to strings.
-  private parseValue(): Expression {
-    let left = this.parseAtom();
-
-    while (this.currentToken().type === TokenType.PLUS &&
-           TARGET_TOKENS.indexOf(this.peekToken().type) === -1 &&
-           TARGET_NAMES.has(this.peekToken().value) === false) {
-      this.nextToken(); // consume "+"
-      const right = this.parseAtom();
-      const combined: BinaryExpression = {
-        type: "BinaryExpression",
-        left,
-        operator: "+",
-        right
-      };
-      left = combined;
-    }
-
-    return left;
+  private parseSet(): SetStatement {
+    this.next(); // Set
+    const name = this.expect(TokenType.IDENTIFIER, "Expected a variable name after Set").value;
+    this.expect(TokenType.EQUALS, 'Expected "=" after the variable name');
+    const value = this.parseExpression();
+    return { type: "SetStatement", name, value };
   }
 
-  private parseAtom(): Expression {
-    const token = this.currentToken();
+  private parseDefine(): DefineStatement {
+    this.next(); // Define
+    const name = this.expect(TokenType.IDENTIFIER, "Expected a function name after Define").value;
+    this.expect(TokenType.LPAREN, 'Expected "(" after the function name');
 
-    if (token.type === TokenType.STRING) {
-      const literal: StringLiteral = { type: "StringLiteral", value: token.value };
-      this.nextToken();
-      return literal;
+    const params: string[] = [];
+    if (!this.check(TokenType.RPAREN)) {
+      do {
+        params.push(this.expect(TokenType.IDENTIFIER, "Expected a parameter name").value);
+      } while (this.match(TokenType.COMMA));
     }
+    this.expect(TokenType.RPAREN, 'Expected ")" after the parameters');
 
-    if (token.type === TokenType.NUMBER) {
-      const literal: StringLiteral = { type: "StringLiteral", value: token.value };
-      this.nextToken();
-      return literal;
+    this.skipNewlines();
+    const body = this.parseBlock();
+    this.expect(TokenType.END, 'Expected "End" to close Define');
+    return { type: "DefineStatement", name, params, body };
+  }
+
+  private parseReturn(): ReturnStatement {
+    this.next(); // Return
+    if (
+      this.check(TokenType.NEWLINE) ||
+      this.check(TokenType.END) ||
+      this.check(TokenType.EOF)
+    ) {
+      return { type: "ReturnStatement", value: null };
     }
+    return { type: "ReturnStatement", value: this.parseExpression() };
+  }
 
-    throw new ParseError(
-      `Expected a value, got "${token.value || token.type}"`,
-      token.line,
-      token.column
-    );
+  private parseExpressionStatement(): ExpressionStatement {
+    const token = this.current();
+    const expression = this.parseExpression();
+    if (expression.type !== "CallExpression") {
+      throw new ParseError(
+        "A statement must be Write, Set, Define, Return, End, a call, or a comment",
+        token.line,
+        token.column
+      );
+    }
+    return { type: "ExpressionStatement", expression };
+  }
+
+  private parseBlock(): Statement[] {
+    const statements: Statement[] = [];
+    this.skipNewlines();
+    while (
+      !this.check(TokenType.END) &&
+      !this.check(TokenType.EOF)
+    ) {
+      statements.push(this.parseStatement());
+      this.skipNewlines();
+    }
+    return statements;
   }
 
   private parseTarget(): ConsoleTarget {
-    const token = this.currentToken();
-
-    if (token.type === TokenType.IN_CONSOLE) {
-      this.nextToken();
+    if (this.match(TokenType.IN_CONSOLE)) {
       return { type: "ConsoleTarget", value: "console" };
     }
-
-    if (token.type === TokenType.IN_NEWLINE) {
-      this.nextToken();
+    if (this.match(TokenType.IN_NEWLINE)) {
       return { type: "ConsoleTarget", value: "newline" };
     }
-
-    if (token.type === TokenType.IDENTIFIER && TARGET_NAMES.has(token.value)) {
-      this.nextToken();
-      return {
-        type: "ConsoleTarget",
-        value: token.value === "in.newline" ? "newline" : "console"
-      };
-    }
-
+    const t = this.current();
     throw new ParseError(
-      `Expected a target such as in.console, got "${token.value || token.type}"`,
-      token.line,
-      token.column
+      `Expected a target such as in.console (got ${describe(t)})`,
+      t.line,
+      t.column
     );
   }
+
+  // --- expressions (lowest to highest precedence) --------------------------
+
+  private parseExpression(): Expression {
+    return this.parseOr();
+  }
+
+  private parseOr(): Expression {
+    let left = this.parseAnd();
+    while (this.match(TokenType.OR)) {
+      const right = this.parseAnd();
+      left = binary("or", left, right);
+    }
+    return left;
+  }
+
+  private parseAnd(): Expression {
+    let left = this.parseEquality();
+    while (this.match(TokenType.AND)) {
+      const right = this.parseEquality();
+      left = binary("and", left, right);
+    }
+    return left;
+  }
+
+  private parseEquality(): Expression {
+    let left = this.parseComparison();
+    while (this.check(TokenType.EQEQ) || this.check(TokenType.NEQ)) {
+      const op = this.next().value;
+      const right = this.parseComparison();
+      left = binary(op, left, right);
+    }
+    return left;
+  }
+
+  private parseComparison(): Expression {
+    let left = this.parseAdditive();
+    while (
+      this.check(TokenType.LT) ||
+      this.check(TokenType.GT) ||
+      this.check(TokenType.LTE) ||
+      this.check(TokenType.GTE)
+    ) {
+      const op = this.next().value;
+      const right = this.parseAdditive();
+      left = binary(op, left, right);
+    }
+    return left;
+  }
+
+  private parseAdditive(): Expression {
+    let left = this.parseMultiplicative();
+    while (this.check(TokenType.PLUS) || this.check(TokenType.MINUS)) {
+      // A "+" immediately followed by a target belongs to Write, not to the
+      // expression: `Write="hi"+in.console`.
+      if (this.check(TokenType.PLUS) && isTargetToken(this.peek(1).type)) {
+        break;
+      }
+      const op = this.next().value;
+      const right = this.parseMultiplicative();
+      left = binary(op, left, right);
+    }
+    return left;
+  }
+
+  private parseMultiplicative(): Expression {
+    let left = this.parseUnary();
+    while (
+      this.check(TokenType.STAR) ||
+      this.check(TokenType.SLASH) ||
+      this.check(TokenType.PERCENT)
+    ) {
+      const op = this.next().value;
+      const right = this.parseUnary();
+      left = binary(op, left, right);
+    }
+    return left;
+  }
+
+  private parseUnary(): Expression {
+    if (this.match(TokenType.MINUS)) {
+      return unary("-", this.parseUnary());
+    }
+    if (this.match(TokenType.NOT)) {
+      return unary("not", this.parseUnary());
+    }
+    return this.parseCall();
+  }
+
+  private parseCall(): Expression {
+    let expr = this.parsePrimary();
+    while (this.check(TokenType.LPAREN)) {
+      this.next(); // (
+      const args: Expression[] = [];
+      if (!this.check(TokenType.RPAREN)) {
+        do {
+          args.push(this.parseExpression());
+        } while (this.match(TokenType.COMMA));
+      }
+      this.expect(TokenType.RPAREN, 'Expected ")" after the arguments');
+      expr = { type: "CallExpression", callee: expr, args };
+    }
+    return expr;
+  }
+
+  private parsePrimary(): Expression {
+    const token = this.current();
+
+    switch (token.type) {
+      case TokenType.STRING:
+        this.next();
+        return { type: "StringLiteral", value: token.value };
+      case TokenType.NUMBER:
+        this.next();
+        return { type: "NumberLiteral", value: Number(token.value) };
+      case TokenType.TRUE:
+        this.next();
+        return { type: "BooleanLiteral", value: true };
+      case TokenType.FALSE:
+        this.next();
+        return { type: "BooleanLiteral", value: false };
+      case TokenType.IDENTIFIER:
+        this.next();
+        return { type: "Identifier", name: token.value };
+      case TokenType.LPAREN: {
+        this.next();
+        const expr = this.parseExpression();
+        this.expect(TokenType.RPAREN, 'Expected ")" to close the group');
+        return expr;
+      }
+      default:
+        throw new ParseError(`Expected a value (got ${describe(token)})`, token.line, token.column);
+    }
+  }
+}
+
+function binary(operator: string, left: Expression, right: Expression): BinaryExpression {
+  return { type: "BinaryExpression", operator, left, right };
+}
+
+function unary(operator: string, operand: Expression): UnaryExpression {
+  return { type: "UnaryExpression", operator, operand };
+}
+
+function describe(token: Token): string {
+  if (token.type === TokenType.EOF) return "end of file";
+  if (token.type === TokenType.NEWLINE) return "end of line";
+  return `"${token.value}"`;
 }

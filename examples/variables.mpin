@@ -1,0 +1,7 @@
+#= Variables and expressions
+Set hero = "Mulpin"
+Set hp = 100
+Set maxhp = 100
+
+Write=hero + " hp: " + hp + "/" + maxhp + " (" + str(hp * 100 / maxhp) + "%)"+in.newline
+Write="healthy? " + str(hp > 50)+in.console

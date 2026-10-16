@@ -1,0 +1,18 @@
+#= Functions with parameters and return values
+Define greet(who)
+    Return "Hello, " + who + "!"
+End
+
+Define add(a, b)
+    Return a + b
+End
+
+Define describe(name, value)
+    Write=name + " = " + str(value)+in.newline
+    Return type(value)
+End
+
+Write=greet("Mulpin")+in.newline
+Write="2 + 3 = " + str(add(2, 3))+in.newline
+Set kind = describe("answer", add(40, 2))
+Write="that was a " + kind+in.console

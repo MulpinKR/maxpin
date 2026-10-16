@@ -42,6 +42,9 @@ describe("CLI (end to end)", () => {
   });
 
   test("reports the version from package.json", () => {
-    expect(runCliArgs(["--version"]).trim()).toBe("0.1.0");
+    const pkg = JSON.parse(
+      require("fs").readFileSync(require("path").join(ROOT, "package.json"), "utf-8")
+    );
+    expect(runCliArgs(["--version"]).trim()).toBe(pkg.version);
   });
 });
