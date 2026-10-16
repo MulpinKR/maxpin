@@ -159,6 +159,11 @@ the whole pipeline.
 
 ---
 
+## Current Stage
+"Maxpin is heavily WIP and can do only output and comments, i will make more updates adding new function to code language" - Mulpin
+
+---
+
 ## License
 
 MIT — © Mulpin
