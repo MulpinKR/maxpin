@@ -127,6 +127,10 @@ export class Lexer {
     this.readChar(); // consume opening quote
     let str = "";
     while (this.ch !== '"' && !this.isLineEnd() && !this.isEOF()) {
+      if (this.ch === "\\") {
+        str += this.readEscape(startLine, startColumn);
+        continue;
+      }
       str += this.ch;
       this.readChar();
     }
@@ -135,6 +139,32 @@ export class Lexer {
     }
     this.readChar(); // consume closing quote
     return this.makeToken(TokenType.STRING, str, startLine, startColumn);
+  }
+
+  /** Handles a backslash escape inside a string literal. */
+  private readEscape(startLine: number, startColumn: number): string {
+    const escapeLine = this.line;
+    const escapeColumn = this.column;
+    this.readChar(); // consume backslash
+    if (this.isLineEnd() || this.isEOF()) {
+      throw new LexError("Unterminated string literal", startLine, startColumn);
+    }
+    const ch = this.ch;
+    this.readChar();
+    switch (ch) {
+      case "n":
+        return "\n";
+      case "t":
+        return "\t";
+      case "r":
+        return "\r";
+      case '"':
+        return '"';
+      case "\\":
+        return "\\";
+      default:
+        throw new LexError(`Unknown escape sequence '\\${ch}'`, escapeLine, escapeColumn);
+    }
   }
 
   private readComment(): Token {

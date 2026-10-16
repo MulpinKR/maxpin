@@ -40,6 +40,10 @@ export class Interpreter {
   private globals: Environment;
   private env: Environment;
   private output: string[] = [];
+  private callDepth: number = 0;
+
+  /** Maximum nested .mpin calls before a runaway script is stopped. */
+  maxCallDepth: number = 500;
 
   constructor(globals?: Environment) {
     this.globals = globals ?? new Environment();
@@ -83,7 +87,15 @@ export class Interpreter {
   interpret(program: Program): string {
     this.output = [];
     this.env = this.globals;
-    this.executeBlock(program.statements, this.env);
+    try {
+      this.executeBlock(program.statements, this.env);
+    } catch (signal) {
+      // A Return that never reached a function is a mistake, not a crash.
+      if (signal instanceof ReturnSignal) {
+        throw new RuntimeError("'Return' used outside of a function");
+      }
+      throw signal;
+    }
     return this.output.join("");
   }
 
@@ -192,9 +204,9 @@ export class Interpreter {
       case "*":
         return this.numeric(left, expr.operator) * this.numeric(right, expr.operator);
       case "/":
-        return this.numeric(left, expr.operator) / this.numeric(right, expr.operator);
+        return this.divide(left, right);
       case "%":
-        return this.numeric(left, expr.operator) % this.numeric(right, expr.operator);
+        return this.modulo(left, right);
       case "==":
         return this.equals(left, right);
       case "!=":
@@ -243,20 +255,39 @@ export class Interpreter {
       return fn.call(args);
     }
 
-    const local = new Environment(fn.closure);
-    fn.params.forEach((param, i) => {
-      local.set(param, args[i]);
-    });
-
-    try {
-      this.executeBlock(fn.body, local);
-    } catch (signal) {
-      if (signal instanceof ReturnSignal) {
-        return signal.value;
-      }
-      throw signal;
+    // User functions are strict about argument count, like the builtins.
+    if (args.length !== fn.params.length) {
+      throw new RuntimeError(
+        `${fn.name}() expects ${fn.params.length} argument(s) but got ${args.length}`
+      );
     }
-    return undefined;
+
+    // Guard against runaway recursion taking the host down with it.
+    if (this.callDepth >= this.maxCallDepth) {
+      throw new RuntimeError(
+        `Maximum recursion depth (${this.maxCallDepth}) exceeded in ${fn.name}()`
+      );
+    }
+
+    this.callDepth++;
+    try {
+      const local = new Environment(fn.closure);
+      fn.params.forEach((param, i) => {
+        local.set(param, args[i]);
+      });
+
+      try {
+        this.executeBlock(fn.body, local);
+      } catch (signal) {
+        if (signal instanceof ReturnSignal) {
+          return signal.value;
+        }
+        throw signal;
+      }
+      return undefined;
+    } finally {
+      this.callDepth--;
+    }
   }
 
   // --- helpers -------------------------------------------------------------
@@ -268,6 +299,24 @@ export class Interpreter {
       );
     }
     return value;
+  }
+
+  private divide(left: MaxpinValue, right: MaxpinValue): number {
+    const a = this.numeric(left, "/");
+    const b = this.numeric(right, "/");
+    if (b === 0) {
+      throw new RuntimeError("Division by zero");
+    }
+    return a / b;
+  }
+
+  private modulo(left: MaxpinValue, right: MaxpinValue): number {
+    const a = this.numeric(left, "%");
+    const b = this.numeric(right, "%");
+    if (b === 0) {
+      throw new RuntimeError("Modulo by zero");
+    }
+    return a % b;
   }
 
   private equals(left: MaxpinValue, right: MaxpinValue): boolean {

@@ -113,6 +113,10 @@ export class Parser {
         return this.parseDefine();
       case TokenType.RETURN:
         return this.parseReturn();
+      case TokenType.END: {
+        const t = this.current();
+        throw new ParseError('Unexpected "End" with no matching Define', t.line, t.column);
+      }
       default:
         return this.parseExpressionStatement();
     }

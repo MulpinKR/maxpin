@@ -35,6 +35,15 @@ export class Maxpin {
     this.interpreter.defineNative(name, arity, call);
   }
 
+  /** Set the maximum depth of nested .mpin function calls. */
+  setMaxCallDepth(depth: number): this {
+    if (depth <= 0) {
+      throw new Error("max call depth must be a positive number");
+    }
+    this.interpreter.maxCallDepth = depth;
+    return this;
+  }
+
   /**
    * Call a top-level .mpin function from host code.
    *
