@@ -6,6 +6,13 @@ export enum TokenType {
   RETURN = "RETURN",
   END = "END",
 
+  // Control flow
+  IF = "IF",
+  ELSE = "ELSE",
+  WHILE = "WHILE",
+  REPEAT = "REPEAT",
+  TIMES = "TIMES",
+
   // Operator keywords
   AND = "AND",
   OR = "OR",

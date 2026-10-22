@@ -113,9 +113,15 @@ export class Parser {
         return this.parseDefine();
       case TokenType.RETURN:
         return this.parseReturn();
+      case TokenType.IF:
+        return this.parseIf();
+      case TokenType.WHILE:
+        return this.parseWhile();
+      case TokenType.REPEAT:
+        return this.parseRepeat();
       case TokenType.END: {
         const t = this.current();
-        throw new ParseError('Unexpected "End" with no matching Define', t.line, t.column);
+        throw new ParseError('Unexpected "End" with no matching block', t.line, t.column);
       }
       default:
         return this.parseExpressionStatement();
@@ -188,17 +194,79 @@ export class Parser {
     return { type: "ExpressionStatement", expression };
   }
 
-  private parseBlock(): Statement[] {
+  private parseBlock(stopAtElse?: boolean): Statement[] {
     const statements: Statement[] = [];
     this.skipNewlines();
     while (
       !this.check(TokenType.END) &&
-      !this.check(TokenType.EOF)
+      !this.check(TokenType.EOF) &&
+      !(stopAtElse && this.check(TokenType.ELSE))
     ) {
       statements.push(this.parseStatement());
       this.skipNewlines();
     }
     return statements;
+  }
+
+  private parseIf(): import("../ast/Node").IfStatement {
+    this.next(); // If
+    const condition = this.parseExpression();
+    this.skipNewlines();
+    const consequent = this.parseBlock(true);
+
+    let alternate: import("../ast/Node").IfStatement["alternate"] = null;
+    if (this.check(TokenType.ELSE)) {
+      this.next(); // Else
+      this.skipNewlines();
+      if (this.check(TokenType.IF)) {
+        // else-if chain
+        alternate = this.parseIfChain();
+      } else {
+        // else block
+        alternate = this.parseBlock();
+      }
+    }
+    // End is consumed by parseIfChain at the appropriate level
+    return { type: "IfStatement", condition, consequent, alternate };
+  }
+
+  private parseIfChain(): import("../ast/Node").IfStatement {
+    const node = this.parseIf();
+    // If this If has a final else-block or no else, it owns the End
+    // If it has an else-if, that else-if chain owns the End
+    if (node.alternate === null || Array.isArray(node.alternate)) {
+      this.expect(TokenType.END, 'Expected "End" to close If');
+    }
+    return node;
+  }
+
+  private parseWhile(): import("../ast/Node").WhileStatement {
+    this.next(); // While
+    const condition = this.parseExpression();
+    this.skipNewlines();
+    const body = this.parseBlock();
+    this.expect(TokenType.END, 'Expected "End" to close While');
+    return { type: "WhileStatement", condition, body };
+  }
+
+  private parseRepeat(): import("../ast/Node").RepeatStatement {
+    this.next(); // Repeat
+    const count = this.parseExpression();
+    // expect "times"
+    this.skipNewlines();
+    if (this.check(TokenType.TIMES)) {
+      this.next();
+    } else if (this.check(TokenType.IDENTIFIER) && this.current().value === "times") {
+      this.next();
+    } else {
+      // sometimes times might be parsed differently? it's a keyword now
+      const t = this.current();
+      throw new ParseError('Expected "times" after the count', t.line, t.column);
+    }
+    this.skipNewlines();
+    const body = this.parseBlock();
+    this.expect(TokenType.END, 'Expected "End" to close Repeat');
+    return { type: "RepeatStatement", count, body };
   }
 
   private parseTarget(): ConsoleTarget {

@@ -121,9 +121,60 @@ export class Interpreter {
       case "ReturnStatement":
         this.executeReturn(statement, env);
         return;
+      case "IfStatement":
+        this.executeIf(statement, env);
+        return;
+      case "WhileStatement":
+        this.executeWhile(statement, env);
+        return;
+      case "RepeatStatement":
+        this.executeRepeat(statement, env);
+        return;
       case "ExpressionStatement":
         this.evaluate(statement.expression, env);
         return;
+    }
+  }
+
+  private executeIf(statement: import("../ast/Node").IfStatement, env: Environment): void {
+    const test = this.evaluate(statement.condition, env);
+    if (isTruthy(test)) {
+      this.executeBlock(statement.consequent, env);
+      return;
+    }
+    if (statement.alternate) {
+      if (Array.isArray(statement.alternate)) {
+        this.executeBlock(statement.alternate, env);
+      } else {
+        // else-if
+        this.executeIf(statement.alternate, env);
+      }
+    }
+  }
+
+  private executeWhile(statement: import("../ast/Node").WhileStatement, env: Environment): void {
+    let iterations = 0;
+    while (isTruthy(this.evaluate(statement.condition, env))) {
+      // simple safety bound to avoid infinite loops hanging in tests? keep generous
+      if (iterations++ > 100000) {
+        throw new RuntimeError("While loop exceeded maximum iterations (100000)");
+      }
+      this.executeBlock(statement.body, env);
+    }
+  }
+
+  private executeRepeat(statement: import("../ast/Node").RepeatStatement, env: Environment): void {
+    const count = this.evaluate(statement.count, env);
+    if (typeof count !== "number") {
+      throw new RuntimeError(`Repeat expects a number but got ${typeof count === "undefined" ? "nothing" : typeof count}`);
+    }
+    let n = Math.floor(count);
+    if (n < 0) n = 0;
+    if (n > 100000) {
+      throw new RuntimeError("Repeat count exceeds maximum (100000)");
+    }
+    for (let i = 0; i < n; i++) {
+      this.executeBlock(statement.body, env);
     }
   }
 

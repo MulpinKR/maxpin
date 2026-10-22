@@ -1,6 +1,6 @@
 {
   "name": "maxpin",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Maxpin programming language - step by step, logically structured",
   "main": "dist/index.js",
   "bin": {

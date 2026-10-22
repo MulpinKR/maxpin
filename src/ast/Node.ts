@@ -4,6 +4,9 @@ export type NodeType =
   | "SetStatement"
   | "DefineStatement"
   | "ReturnStatement"
+  | "IfStatement"
+  | "WhileStatement"
+  | "RepeatStatement"
   | "ExpressionStatement"
   | "Comment"
   | "StringLiteral"
@@ -29,6 +32,9 @@ export type Statement =
   | SetStatement
   | DefineStatement
   | ReturnStatement
+  | IfStatement
+  | WhileStatement
+  | RepeatStatement
   | ExpressionStatement
   | Comment;
 
@@ -58,6 +64,29 @@ export interface DefineStatement extends Node {
 export interface ReturnStatement extends Node {
   type: "ReturnStatement";
   value: Expression | null;
+}
+
+/** If <condition> ... [Else If ...] [Else ...] End */
+export interface IfStatement extends Node {
+  type: "IfStatement";
+  condition: Expression;
+  consequent: Statement[];
+  /** For else-if/else: alternate is either another IfStatement (else-if) or a block wrapped as synthetic? easier: alternate is Statement[] when else has no condition, or IfStatement for else-if */
+  alternate: Statement[] | IfStatement | null;
+}
+
+/** While <condition> ... End */
+export interface WhileStatement extends Node {
+  type: "WhileStatement";
+  condition: Expression;
+  body: Statement[];
+}
+
+/** Repeat <count> times ... End */
+export interface RepeatStatement extends Node {
+  type: "RepeatStatement";
+  count: Expression;
+  body: Statement[];
 }
 
 /** A bare expression used as a statement, e.g. a function call. */
