@@ -4,7 +4,7 @@ Maxpin (pronounced "Max-pin") is a step-by-step, logically structured programmin
 language. Every statement reads in plain order: **what to do**, then **where to send it**.
 
 - **File extension:** `.mpin`
-- **Version:** 0.2.0
+- **Version:** 0.2.2
 - **Nickname origin:** from *Mulpin*
 
 ---
@@ -85,7 +85,7 @@ See [docs/language.md](docs/language.md) for the full language reference.
 
 ---
 
-## What's in 0.2.0
+## What's in 0.2.2
 
 Building on the 0.1.0 output layer, Maxpin now has a real language core:
 
@@ -94,9 +94,11 @@ Building on the 0.1.0 output layer, Maxpin now has a real language core:
 - **Expressions** — `+ - * / %`, comparisons, `and`/`or`/`not`, grouping
 - **Functions** — `Define` / `End`, parameters, `Return`, closures
 - **Standard library** — `len`, `upper`, `lower`, `str`, `num`, `type`
+- **Conditionals** — `If` / `Else If` / `Else` / `End`
+- **Loops** — `While` / `End`, `Repeat` ... `times` / `End`
 - **Embedding** — a host can register native functions and call `.mpin` functions
 
-Control flow (`if`, loops) and console input are next on the roadmap.
+Console input is next on the roadmap.
 
 ---
 
@@ -240,8 +242,8 @@ Maxpin is a template meant to grow. Natural next steps:
 
 - [x] **Variables** — `Set name = value`
 - [x] **Functions** — `Define` / `End`, parameters, `Return`, closures
-- [ ] **Conditionals** — `If` / `Else` / `End`
-- [ ] **Loops** — `Repeat` / `While`
+- [x] **Conditionals** — `If` / `Else If` / `Else` / `End`
+- [x] **Loops** — `While` / `End`, `Repeat` ... `times` / `End`
 - [ ] **Input** — read from the console or keyboard
 - [ ] **More targets** — `in.file`, `in.stderr`
 - [ ] **Native game API** — a richer host bridge for real games
@@ -253,9 +255,9 @@ the whole pipeline.
 
 ## Current Stage
 
-"Maxpin now has variables, expressions and functions with closures - you can define
-your own functions right in `.mpin` and embed the language in a host like a game.
-Next up: `if` and loops." - Mulpin
+"Maxpin now has conditionals and loops. You can write real branching logic and
+iteration, define your own functions, and embed the language in a host like a game.
+Next up: console input." - Mulpin
 
 ---
 
